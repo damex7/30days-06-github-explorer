@@ -1,6 +1,7 @@
-import { DEFAULT_TTL, readCache, writeCache } from './cache.js'
+import { DEFAULT_TTL, isFresh, readCache, writeCache } from './cache.js'
 import { parseLinkHeader } from './linkHeader.js'
 import { getRateLimit, recordRateLimit, recordRateLimitBody } from './rateLimit.js'
+import { countResponse } from './requestStats.js'
 import { getToken } from './token.js'
 
 /*
@@ -36,9 +37,10 @@ export async function request(pathOrUrl, { accept = JSON_TYPE, signal, cache = t
 
   // 1. Cache. Same URL + same Accept = same answer for a few minutes.
   const cacheKey = `${accept} ${url}`
-  if (cache) {
-    const hit = readCache(cacheKey, ttl)
-    if (hit) return { data: hit.data, links: parseLinkHeader(hit.link), fromCache: true }
+  const cached = cache ? readCache(cacheKey) : null
+  if (cached && isFresh(cached, ttl)) {
+    countResponse('cached')
+    return { data: cached.data, links: parseLinkHeader(cached.link), fromCache: true }
   }
 
   // 2. Already out of requests? Don't waste a call we know will fail.
@@ -57,6 +59,16 @@ export async function request(pathOrUrl, { accept = JSON_TYPE, signal, cache = t
   const authToken = token ?? getToken()
   if (authToken) headers.Authorization = `Bearer ${authToken}`
 
+  //    If-None-Match: a conditional request. We still hold an older copy, so we
+  //    send back its ETag (a fingerprint GitHub gave us with the data) and ask
+  //    "has this changed?". Unchanged → 304 Not Modified with an empty body.
+  //    With a token, a 304 doesn't count against the rate limit at all.
+  //    Without one it still costs a request, but the reply is tiny and our
+  //    copy is confirmed up to date.
+  //    (Setting this header ourselves also makes the browser skip its own HTTP
+  //    cache, so we really see the 304 instead of a copy the browser made up.)
+  if (cached?.etag) headers['If-None-Match'] = cached.etag
+
   let res
   try {
     res = await fetch(url, { headers, signal })
@@ -69,12 +81,21 @@ export async function request(pathOrUrl, { accept = JSON_TYPE, signal, cache = t
   // 4. Rate-limit headers come on every response, success or failure.
   recordRateLimit(res.headers)
 
-  // 5. Status codes. fetch does NOT throw on 404 or 500; we must check res.ok.
+  // 5. 304 Not Modified: our copy is still right. Re-save it to restart its
+  //    5 minutes, and reuse it. (res.ok is false for 304, so check it first.)
+  if (res.status === 304 && cached) {
+    writeCache(cacheKey, { data: cached.data, link: cached.link, etag: res.headers.get('etag') ?? cached.etag })
+    countResponse('notModified')
+    return { data: cached.data, links: parseLinkHeader(cached.link), fromCache: true, notModified: true }
+  }
+
+  // 6. Status codes. fetch does NOT throw on 404 or 500; we must check res.ok.
   if (!res.ok) throw await errorFromResponse(res)
 
   const data = accept === HTML_TYPE ? await res.text() : await res.json()
   const link = res.headers.get('link')
-  if (cache) writeCache(cacheKey, { data, link })
+  if (cache) writeCache(cacheKey, { data, link, etag: res.headers.get('etag') })
+  countResponse('downloaded')
   return { data, links: parseLinkHeader(link), fromCache: false }
 }
 

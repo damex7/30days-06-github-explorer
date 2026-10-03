@@ -13,25 +13,27 @@
   - Storage is small (about 5 MB per site). If a write doesn't fit we drop
     the oldest half of our entries and try once more; if it still fails we
     just don't cache. The cache must never break the app.
+
+  Each entry also keeps the response's ETag. When an entry is older than
+  the TTL we don't throw it away: request() asks GitHub "has it changed?"
+  with If-None-Match, and a 304 lets us reuse it (see lib/github.js).
 */
 
 const PREFIX = 'scout:v1:'
 export const DEFAULT_TTL = 5 * 60 * 1000 // 5 minutes
 
-export function readCache(key, ttl = DEFAULT_TTL) {
+/** The stored entry { data, link, etag, savedAt }, however old, or null. */
+export function readCache(key) {
   try {
     const raw = sessionStorage.getItem(PREFIX + key)
-    if (!raw) return null
-    const entry = JSON.parse(raw)
-    if (Date.now() - entry.savedAt > ttl) {
-      sessionStorage.removeItem(PREFIX + key)
-      return null
-    }
-    return entry
+    return raw ? JSON.parse(raw) : null
   } catch {
     return null
   }
 }
+
+/** Young enough to use without asking GitHub at all? */
+export const isFresh = (entry, ttl = DEFAULT_TTL) => Date.now() - entry.savedAt <= ttl
 
 export function writeCache(key, value) {
   const raw = JSON.stringify({ ...value, savedAt: Date.now() })

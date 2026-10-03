@@ -3,6 +3,7 @@ import { useCountdown } from '../hooks/useCountdown.js'
 import { formatClock, formatNumber } from '../lib/format.js'
 import { fetchRateLimit } from '../lib/github.js'
 import { useRateLimit } from '../lib/rateLimit.js'
+import { useRequestStats } from '../lib/requestStats.js'
 import { TOKEN_KEY, removeToken, saveToken, useHasToken } from '../lib/token.js'
 import Button from './ui/Button.jsx'
 import { CheckIcon, ExternalIcon, KeyIcon } from './ui/Icons.jsx'
@@ -165,10 +166,19 @@ export default function SettingsDialog({ open, onClose }) {
 function Usage({ hasToken }) {
   const core = useRateLimit('core')
   const search = useRateLimit('search')
+  const stats = useRequestStats()
   return (
-    <div className="grid grid-cols-2 gap-3">
-      <Bucket title="Profiles & repos" info={core} fallbackLimit={hasToken ? 5000 : 60} period="hour" />
-      <Bucket title="Search" info={search} fallbackLimit={hasToken ? 30 : 10} period="minute" />
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-3">
+        <Bucket title="Profiles & repos" info={core} fallbackLimit={hasToken ? 5000 : 60} period="hour" />
+        <Bucket title="Search" info={search} fallbackLimit={hasToken ? 30 : 10} period="minute" />
+      </div>
+      <p className="text-xs text-ink-faint">
+        This tab so far: <strong className="text-ink-soft">{stats.cached}</strong> answered from the cache (no request),{' '}
+        <strong className="text-ink-soft">{stats.notModified}</strong> confirmed unchanged by GitHub (304,{' '}
+        {hasToken ? 'free with your token' : 'free only with a token'}), <strong className="text-ink-soft">{stats.downloaded}</strong>{' '}
+        downloaded in full.
+      </p>
     </div>
   )
 }

@@ -33,7 +33,7 @@ No API key or `.env` file is needed. Deploying to Vercel works out of the box: `
 
 Every request goes through one function, `request()` in [`src/lib/github.js`](src/lib/github.js):
 
-1. **Cache:** it checks sessionStorage first. Responses are kept for 5 minutes per URL and `Accept` type.
+1. **Cache:** it checks sessionStorage first. Responses are kept for 5 minutes per URL and `Accept` type. After that, the stored copy is checked with GitHub using its ETag instead of being downloaded again (see [ETags](#etags-conditional-requests)).
 2. **Headers:** it sends `Accept: application/vnd.github+json` (or `application/vnd.github.html+json` for READMEs) and `X-GitHub-Api-Version: 2022-11-28`. It adds `Authorization: Bearer …` only if the visitor saved their own token.
 3. **Rate-limit headers:** it reads `x-ratelimit-remaining`, `-limit`, `-reset` and `-resource` from every response, success or failure.
 4. **Status codes:** it turns each status into an error with a `kind` the UI can show properly:
@@ -71,6 +71,19 @@ Ways the app saves requests:
 ### Caching trade-off
 
 Responses are cached in **sessionStorage for 5 minutes**. Going back and forth between profiles is free and instant, which matters on a 60-per-hour budget. The cost is that data can be up to 5 minutes old (a new star won't show straight away). sessionStorage is cleared when the tab closes, so stale data never lingers, and if storage fills up the oldest entries are dropped. The cache can never break the app.
+
+### ETags (conditional requests)
+
+Every GitHub response carries an `ETag` header, a fingerprint of the data such as `W/"18a7…"`. Scout stores it with the cached response.
+
+1. **For 5 minutes:** the cached copy is used directly, with no request.
+2. **After that:** `request()` sends the old fingerprint back in an `If-None-Match` header. In effect it asks: "has this changed since this version?"
+3. **Nothing changed:** GitHub replies **`304 Not Modified`** with an empty body. Scout reuses its copy and restarts the 5 minutes.
+4. **Something changed:** GitHub sends a normal `200` with the new data and a new ETag, which replaces the old entry.
+
+Whether this saves requests depends on the token. I measured it: a `304` **with a token** doesn't count against the rate limit. **Without a token it still counts** (60 → 59 like any request), but the reply is tiny and you never see stale data. The API access dialog shows how many responses this tab got from the cache, as 304s, and as full downloads.
+
+Setting `If-None-Match` ourselves also tells the browser to skip its own HTTP cache, so the code really sees the `304`.
 
 ### Optional personal token
 
@@ -116,6 +129,7 @@ The API doesn't say whether someone uploaded a photo. [`src/lib/avatar.js`](src/
 | Rate-limit badge | [`src/components/RateLimitBadge.jsx`](src/components/RateLimitBadge.jsx) |
 | Error states and the reset countdown | [`src/components/ui/ErrorState.jsx`](src/components/ui/ErrorState.jsx), [`src/hooks/useCountdown.js`](src/hooks/useCountdown.js) |
 | sessionStorage cache with TTL | [`src/lib/cache.js`](src/lib/cache.js) |
+| ETags, `If-None-Match` and `304 Not Modified` | [`src/lib/github.js`](src/lib/github.js) (`request()`), [`src/lib/cache.js`](src/lib/cache.js), [`src/lib/requestStats.js`](src/lib/requestStats.js) |
 | Optional token in localStorage | [`src/lib/token.js`](src/lib/token.js), [`src/components/SettingsDialog.jsx`](src/components/SettingsDialog.jsx) |
 | Loading/error/success with `AbortController` | [`src/hooks/useAsync.js`](src/hooks/useAsync.js) |
 | State in the URL | [`src/hooks/useUrlParams.js`](src/hooks/useUrlParams.js) |
@@ -145,7 +159,7 @@ The API doesn't say whether someone uploaded a photo. [`src/lib/avatar.js`](src/
 
 - Pinned repositories and the contribution calendar (these need the GraphQL API and a token).
 - Exact language percentages by bytes (one extra request per repo).
-- ETag conditional requests (`If-None-Match`), so a `304 Not Modified` doesn't count against the limit.
+- Serve the stale cached copy (marked as such) when the rate limit is hit, instead of an error.
 - A recent activity timeline from `/users/{u}/events/public`.
 - A shareable "profile report card" image.
 - "Sign in with GitHub" through a small backend, so visitors don't paste tokens.
