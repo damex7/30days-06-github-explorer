@@ -17,6 +17,11 @@ export function useRepos(username) {
   const controllerRef = useRef(null)
 
   useEffect(() => {
+    // No username (e.g. an empty Compare slot): stay idle, make no request.
+    if (!username) {
+      setState({ ...INITIAL, status: 'idle' })
+      return
+    }
     const controller = new AbortController()
     controllerRef.current = controller
     setState(INITIAL)

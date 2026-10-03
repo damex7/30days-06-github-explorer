@@ -1,5 +1,7 @@
+import { Suspense } from 'react'
 import { Link, NavLink, Outlet } from 'react-router-dom'
 import { cx } from '../../lib/cx.js'
+import { Spinner } from '../ui/Button.jsx'
 import { CompareIcon, CompassIcon, SearchIcon } from '../ui/Icons.jsx'
 import ThemeToggle from './ThemeToggle.jsx'
 
@@ -60,7 +62,10 @@ export default function AppShell({ actions }) {
       </header>
 
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 outline-none sm:px-6 sm:py-8">
-        <Outlet />
+        {/* Lazy pages show a spinner here while their code downloads; the header stays put */}
+        <Suspense fallback={<PageLoading />}>
+          <Outlet />
+        </Suspense>
       </main>
 
       <footer className="border-t border-line">
@@ -79,5 +84,14 @@ function Logo() {
       <circle cx="14" cy="14" r="6.5" fill="none" stroke="var(--color-accent)" strokeWidth="3" />
       <path d="M19 19l6 6" stroke="var(--color-accent)" strokeWidth="3" strokeLinecap="round" />
     </svg>
+  )
+}
+
+function PageLoading() {
+  return (
+    <div role="status" className="flex justify-center py-20 text-ink-faint">
+      <Spinner className="size-6" />
+      <span className="sr-only">Loading page…</span>
+    </div>
   )
 }

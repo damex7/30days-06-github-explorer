@@ -22,6 +22,7 @@ export function useRecruiterReport(user, reposState) {
     })
   }, [user.status, user.data, reposState.status, reposState.repos, readme.status, readme.value, avatar.status, avatar.value])
 
+  if (user.status === 'idle') return { status: 'idle' }
   if (user.status === 'error') return { status: 'error', error: user.error, retry: user.retry }
   if (reposState.status === 'error') return { status: 'error', error: reposState.error, retry: reposState.retry }
   if (readme.status === 'error') return { status: 'error', error: readme.error, retry: readme.retry }
