@@ -1,0 +1,178 @@
+@import "tailwindcss";
+
+/*
+  Design tokens. Each one becomes a CSS variable (--color-panel) AND a
+  Tailwind utility (bg-panel, text-ink-soft, border-line, font-display...).
+  The look: a talent scout's report. Warm off-white paper, deep aubergine
+  ink, a tangerine marker for highlights and teal for "passed".
+  Dark mode is the same report under lamplight.
+*/
+@theme {
+  --color-paper: #faf6f0; /* page background */
+  --color-panel: #ffffff; /* cards */
+  --color-panel-2: #f4ede4; /* recessed: inputs, hover, skeletons */
+  --color-ink: #2a1533; /* main text */
+  --color-ink-soft: #5b4a63; /* secondary text (8:1 on panel) */
+  --color-ink-faint: #75667c; /* captions, axis labels (5.3:1) */
+  --color-line: #ebe1d6; /* hairlines */
+  --color-line-strong: #9a8aa0; /* input borders (3:1) */
+
+  --color-primary: #4a1d5e; /* aubergine: primary buttons, active nav */
+  --color-primary-hover: #3a1549;
+  --color-on-primary: #ffffff;
+  --color-primary-soft: #f2e8f6;
+  --color-accent: #d9620f; /* tangerine: focus ring, markers (3.7:1, non-text only) */
+  --color-accent-ink: #a6460a; /* tangerine for text (6:1) */
+  --color-accent-soft: #fde9d6;
+
+  /* Status: reserved meanings, always shown with a text label or icon */
+  --color-success: #0d7068;
+  --color-success-soft: #dcf2ee;
+  --color-warning: #8a5700;
+  --color-warning-soft: #fbefd6;
+  --color-danger: #b42318;
+  --color-danger-soft: #fce4e1;
+
+  /* Charts: categorical, ordered for colour-blind separation */
+  --color-chart-1: #6b2f8a; /* plum */
+  --color-chart-2: #e07020; /* tangerine */
+  --color-chart-3: #0f8a80; /* teal */
+  --color-chart-4: #c23b6b; /* raspberry */
+  --color-chart-5: #3d6fc4; /* blue */
+  --color-chart-6: #a88310; /* mustard */
+  --color-chart-muted: #928599; /* "Other" (3.4:1) */
+
+  --font-sans: "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Sora", "Figtree", ui-sans-serif, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+
+  --shadow-card: 0 1px 0 rgb(42 21 51 / 0.04), 0 2px 6px rgb(42 21 51 / 0.05);
+  --shadow-pop: 0 16px 44px rgb(42 21 51 / 0.22);
+
+  --animate-shimmer: shimmer 1.4s ease-in-out infinite;
+  --animate-fade-in: fade-in 180ms ease-out;
+  --animate-pop-in: pop-in 160ms ease-out;
+
+  @keyframes shimmer {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.45;
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+  }
+}
+
+:root {
+  color-scheme: light;
+}
+
+/*
+  Dark mode: same variable names, new values. The inline script in
+  index.html (and useTheme) sets data-theme on <html>.
+*/
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-paper: #150c1a;
+  --color-panel: #1f1427;
+  --color-panel-2: #2a1d34;
+  --color-ink: #f4edf7;
+  --color-ink-soft: #c6b8cf;
+  --color-ink-faint: #a08fa9;
+  --color-line: #33263e;
+  --color-line-strong: #76657f;
+
+  --color-primary: #d9b0f2;
+  --color-primary-hover: #e6c8f8;
+  --color-on-primary: #1d0f26;
+  --color-primary-soft: #382449;
+  --color-accent: #ff9a4d;
+  --color-accent-ink: #ffb27a;
+  --color-accent-soft: #44270f;
+
+  --color-success: #5ad3c4;
+  --color-success-soft: #123832;
+  --color-warning: #f0bd62;
+  --color-warning-soft: #3a2c12;
+  --color-danger: #ff9a8c;
+  --color-danger-soft: #45201c;
+
+  --color-chart-1: #b98ad6;
+  --color-chart-2: #f08a3c;
+  --color-chart-3: #3fb8ab;
+  --color-chart-4: #e06a95;
+  --color-chart-5: #6f9be6;
+  --color-chart-6: #d1ad3a;
+  --color-chart-muted: #6f6178;
+
+  --shadow-card: 0 1px 0 rgb(0 0 0 / 0.3);
+  --shadow-pop: 0 18px 48px rgb(0 0 0 / 0.55);
+}
+
+@layer base {
+  body {
+    @apply bg-paper text-ink font-sans antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply font-display;
+    letter-spacing: -0.015em;
+  }
+
+  /* One visible focus style for every interactive element */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  ::selection {
+    background: var(--color-accent-soft);
+    color: var(--color-ink);
+  }
+
+  /* Freeze the page behind an open dialog */
+  html:has(dialog[open]) {
+    overflow: hidden;
+  }
+
+  dialog::backdrop {
+    background: rgb(21 12 26 / 0.55);
+    backdrop-filter: blur(2px);
+  }
+}
+
+@layer utilities {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
