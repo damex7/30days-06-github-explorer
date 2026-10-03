@@ -1,6 +1,9 @@
 import { useEffect, useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import LanguageChart from '../components/profile/LanguageChart.jsx'
 import ProfileHeader, { ProfileHeaderSkeleton } from '../components/profile/ProfileHeader.jsx'
+import ReadmeModal from '../components/profile/ReadmeModal.jsx'
+import RecruiterView, { ScoreTeaser } from '../components/profile/RecruiterView.jsx'
 import RepoCard from '../components/profile/RepoCard.jsx'
 import RepoSection, { RepoGridSkeleton } from '../components/profile/RepoSection.jsx'
 import Button from '../components/ui/Button.jsx'
@@ -10,6 +13,7 @@ import { ArrowRightIcon, BookIcon } from '../components/ui/Icons.jsx'
 import { useAsync } from '../hooks/useAsync.js'
 import { useDocumentTitle } from '../hooks/useDocumentTitle.js'
 import { addRecentSearch } from '../hooks/useRecentSearches.js'
+import { useRecruiterReport } from '../hooks/useRecruiterReport.js'
 import { useRepos } from '../hooks/useRepos.js'
 import { useUrlParams } from '../hooks/useUrlParams.js'
 import { cx } from '../lib/cx.js'
@@ -21,6 +25,7 @@ import { readRepoFilters, topRepos, totalStars } from '../lib/repos.js'
 const TABS = [
   { id: 'overview', label: 'Overview' },
   { id: 'repos', label: 'Repositories' },
+  { id: 'recruiter', label: 'Recruiter view' },
 ]
 
 export default function Profile() {
@@ -31,6 +36,7 @@ export default function Profile() {
   // Two independent requests, started together: the profile and page 1 of repos.
   const user = useAsync((signal) => getUser(username, { signal }), [username])
   const repos = useRepos(username)
+  const report = useRecruiterReport(user, repos)
 
   const login = user.data?.login
   useDocumentTitle(login ?? username)
@@ -42,6 +48,7 @@ export default function Profile() {
   const langStats = useMemo(() => languageStats(repos.repos), [repos.repos])
   const colorMap = useMemo(() => languageColorMap(langStats), [langStats])
   const top = useMemo(() => topRepos(repos.repos), [repos.repos])
+  const readmeRepo = params.get('readme')
 
   // Keep every current param and add ?readme=name, so closing returns to the same view.
   const readmeLink = (name) => {
@@ -75,6 +82,12 @@ export default function Profile() {
       />
     )
   }
+
+  // Shown wherever numbers come from loaded repos only.
+  const basedOn =
+    repos.status === 'success' && repos.hasMore
+      ? `based on ${formatNumber(repos.repos.length)} of ${formatNumber(user.data?.public_repos ?? 0)} repos (load more on Repositories)`
+      : null
 
   const stars =
     repos.status === 'success'
@@ -111,6 +124,13 @@ export default function Profile() {
       </nav>
 
       {tab === 'overview' && (
+        <div className="grid items-start gap-5 lg:grid-cols-2">
+          <ScoreTeaser state={report} to={tabLink('recruiter')} />
+          <LanguageChart stats={langStats} status={repos.status} basedOn={basedOn} />
+        </div>
+      )}
+
+      {tab === 'overview' && (
         <section aria-labelledby="top-title">
           <div className="flex items-end justify-between gap-3">
             <h2 id="top-title" className="text-lg font-semibold">
@@ -145,6 +165,10 @@ export default function Profile() {
           readmeLink={readmeLink}
         />
       )}
+
+      {tab === 'recruiter' && <RecruiterView state={report} basedOn={basedOn} />}
+
+      <ReadmeModal owner={login ?? username} repo={readmeRepo} onClose={() => updateParams({ readme: null }, { replace: true })} />
     </div>
   )
 }
