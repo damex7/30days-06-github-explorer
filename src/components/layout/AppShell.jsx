@@ -1,8 +1,14 @@
-import { Suspense } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { Link, NavLink, Outlet } from 'react-router-dom'
 import { cx } from '../../lib/cx.js'
+import { OPEN_SETTINGS, openSettings } from '../../lib/events.js'
+import { fetchRateLimit } from '../../lib/github.js'
+import { useHasToken } from '../../lib/token.js'
+import RateLimitBadge from '../RateLimitBadge.jsx'
+import SettingsDialog from '../SettingsDialog.jsx'
+import Button from '../ui/Button.jsx'
 import { Spinner } from '../ui/Button.jsx'
-import { CompareIcon, CompassIcon, SearchIcon } from '../ui/Icons.jsx'
+import { CompareIcon, CompassIcon, KeyIcon, SearchIcon } from '../ui/Icons.jsx'
 import ThemeToggle from './ThemeToggle.jsx'
 
 const NAV = [
@@ -15,7 +21,19 @@ const NAV = [
   Header + page. On wide screens the nav sits beside the logo; on phones it
   drops to its own row so nothing gets squeezed at 360px.
 */
-export default function AppShell({ actions }) {
+export default function AppShell() {
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const hasToken = useHasToken()
+
+  useEffect(() => {
+    // Fill the rate-limit badge straight away. /rate_limit is free: it doesn't use up the limit.
+    fetchRateLimit().catch(() => {})
+    // Any component can call openSettings() (see lib/events.js).
+    const open = () => setSettingsOpen(true)
+    window.addEventListener(OPEN_SETTINGS, open)
+    return () => window.removeEventListener(OPEN_SETTINGS, open)
+  }, [])
+
   return (
     <div className="flex min-h-dvh flex-col">
       <a
@@ -55,7 +73,18 @@ export default function AppShell({ actions }) {
           </nav>
 
           <div className="ml-auto flex items-center gap-1">
-            {actions}
+            <RateLimitBadge />
+            <span className="relative">
+              <Button
+                variant="ghost"
+                iconOnly
+                icon={<KeyIcon />}
+                aria-label={hasToken ? "API token settings (token saved)" : "API token settings"}
+                title="API token settings"
+                onClick={openSettings}
+              />
+              {hasToken && <span aria-hidden="true" className="absolute top-2 right-2 size-2 rounded-full bg-success ring-2 ring-paper" />}
+            </span>
             <ThemeToggle />
           </div>
         </div>
@@ -67,6 +96,8 @@ export default function AppShell({ actions }) {
           <Outlet />
         </Suspense>
       </main>
+
+      <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
       <footer className="border-t border-line">
         <p className="mx-auto max-w-6xl px-4 py-5 text-xs text-ink-faint sm:px-6">

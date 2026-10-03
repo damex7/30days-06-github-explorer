@@ -71,7 +71,7 @@ export default function Profile() {
         messages={{
           'not-found': {
             title: `No GitHub user called “${username}”`,
-            message: 'Check the spelling. It may also be an organisation, a renamed account, or one that was deleted.',
+            message: 'Check the spelling. The account may also have been renamed or deleted.',
             action: (
               <Button as={Link} to="/" variant="primary">
                 Search again

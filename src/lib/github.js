@@ -42,9 +42,11 @@ export async function request(pathOrUrl, { accept = JSON_TYPE, signal, cache = t
   }
 
   // 2. Already out of requests? Don't waste a call we know will fail.
+  //    Except /rate_limit (free) and testing a new token (it has its own limit).
   const bucket = getRateLimit(url.startsWith(`${API}/search/`) ? 'search' : 'core')
-  if (bucket && bucket.remaining === 0 && bucket.reset > Date.now()) {
-    throw rateLimitError(bucket.reset, bucket.limit)
+  const exempt = token !== undefined || url.startsWith(`${API}/rate_limit`)
+  if (!exempt && bucket && bucket.remaining === 0 && bucket.reset > Date.now()) {
+    throw rateLimitError(bucket.reset, bucket.limit, url.startsWith(`${API}/search/`) ? 'search' : 'core')
   }
 
   // 3. Headers.
@@ -102,7 +104,7 @@ async function errorFromResponse(res) {
     case 403:
     case 429:
       // Primary limit: remaining hits 0, reset says when it refills.
-      if (remaining === '0') return rateLimitError(reset, Number(res.headers.get('x-ratelimit-limit')))
+      if (remaining === '0') return rateLimitError(reset, Number(res.headers.get('x-ratelimit-limit')), res.headers.get('x-ratelimit-resource'))
       // Secondary limit (too many requests too fast): Retry-After in seconds.
       if (retryAfter) return rateLimitError(Date.now() + retryAfter * 1000)
       if (res.status === 429 || /rate limit/i.test(message)) return rateLimitError(reset || Date.now() + 60_000)
@@ -116,11 +118,17 @@ async function errorFromResponse(res) {
   }
 }
 
-function rateLimitError(resetAt, limit) {
-  const message =
-    limit && limit <= 60
-      ? `You've used all ${limit} requests GitHub allows. Add a free personal token to raise the limit, or wait for it to reset.`
-      : "You've hit GitHub's rate limit. It resets soon."
+/** The message names the right bucket: hourly for core, per-minute for search. */
+function rateLimitError(resetAt, limit, resource = 'core') {
+  const noToken = resource === 'search' ? limit <= 10 : limit <= 60
+  let message = "You've hit GitHub's rate limit. It resets soon."
+  if (limit && resource === 'search') {
+    message = `Search allows ${limit} requests a minute${noToken ? ' without a token' : ''}. It refills within a minute.`
+  } else if (limit) {
+    message = `You've used all ${limit.toLocaleString('en-GB')} requests GitHub allows per hour${
+      noToken ? ' without a token. Add a free personal token to raise the limit to 5,000, or wait for the reset.' : '.'
+    }`
+  }
   return new GitHubError('rate-limit', message, { status: 403, resetAt })
 }
 
