@@ -7,7 +7,8 @@
   ink, a tangerine marker for highlights and teal for "passed".
   Dark mode is the same report under lamplight.
 */
-@theme {
+/* "static" emits every token even if no class uses it: chart colours are read via var() in inline styles */
+@theme static {
   --color-paper: #faf6f0; /* page background */
   --color-panel: #ffffff; /* cards */
   --color-panel-2: #f4ede4; /* recessed: inputs, hover, skeletons */
